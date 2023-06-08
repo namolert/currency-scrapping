@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 # import df2img #need pip ipython, nbformat
 from selenium.webdriver.chrome.service import Service
 import dataframe_image as dfi
@@ -154,7 +155,7 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
         exc_val_df = selected_currency(exc_val_df, selected_cur_list)
     elif bank_abbv_name == 'SUPERRICH GREEN':
         options = Options()
-        # options.add_argument('ignore-certificate-errors')
+        options.add_argument('ignore-certificate-errors')
         options.headless = True
         driver = webdriver.Chrome(service=Service(
             'C:\\Users\\thrapoom\\AppData\\Local\\Programs\\Python\\Python311\\Scripts'), options=options)
@@ -204,8 +205,13 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
     elif bank_abbv_name == 'BBL':
         options = Options()
         options.headless = True
-        driver = webdriver.Chrome(
-            '~/Downloads/chromedriver_mac64/chromedriver', options=options)
+
+        # ------------- EDIT PATH ---------------
+        # driver = webdriver.Chrome(
+        #     '~/Downloads/chromedriver_mac64/chromedriver', options=options)
+        driver = webdriver.Chrome(service=Service(
+            '/usr/local/bin/chromedriver'), options=options)
+
         driver.get(url)
         exc_val_df = pd.read_html(driver.find_element(
             By.XPATH, '//table').get_attribute('outerHTML'), encoding='utf-8')[0]
@@ -255,6 +261,36 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
         exc_val_df["bank_abbv_name"] = bank_abbv_name
         exc_val_df = selected_currency(exc_val_df, selected_cur_list)
 
+    elif bank_abbv_name == "SCB":
+        options = Options()
+        options.add_argument('ignore-certificate-errors')
+        options.headless = True
+
+        driver = webdriver.Chrome(service=Service(
+            '/usr/local/bin/chromedriver'), options=options)
+        driver.get(url)
+
+        tmp_df = pd.read_html(driver.find_element(
+            By.XPATH, '//table[@class="table-rate"]').get_attribute('outerHTML'), encoding='utf-8')[0]
+
+        # ----------- USED TT equal DEBIT --------------
+        currency = tmp_df['FOREIGN CURRENCIES']['Unnamed: 0_level_1']
+        bank_sell = tmp_df['BANK SELLS']['D/D & T/T']
+        bank_buy = tmp_df['BANK BUYS']['TT']
+
+        # exc_val_df = pd.DataFrame([currency,bank_sell,bank_buy],columns=['currency','buying_rate','selling_rate'])
+        exc_val_df = pd.concat([currency, bank_sell, bank_buy], axis=1)
+        exc_val_df.rename(columns={
+            'Unnamed: 0_level_1': 'currency',
+            'D/D & T/T': 'buying_rate',
+            'TT': 'selling_rate'
+        }, inplace=True)
+        exc_val_df['bank_abbv_name'] = bank_abbv_name
+        exc_val_df['currency'] = exc_val_df['currency'].apply(
+            lambda x: x[0:4] if 'USD1' in x or 'USD2' in x else x[0:3])
+        exc_val_df.replace({'-': ''}, inplace=True)
+        save_dataframe_image(exc_val_df, 'SCB')
+
     # save_df2img(tmp_df.set_index('bank_abbv_name'),'Test_save_'+bank_abbv_name)
     # save_dataframe_image(tmp_df.set_index('bank_abbv_name'),'Test_save_'+bank_abbv_name)
     tmp_df = exc_val_df.copy()
@@ -278,19 +314,23 @@ bbl_df = scrape_website(
     "BBL", "https://www.bangkokbank.com/en/Personal/Other-Services/View-Rates/Foreign-Exchange-Rates")
 uob_df = scrape_website(
     "UOB", "https://ereport.uob.co.th/UOBWebFrontService/Exchange/FxRateEnNew.jsp?flags=LastFx")
+scb_df = scrape_website(
+    "SCB", "https://www.scb.co.th/th/personal-banking/foreign-exchange-rates.html"
+)
+
 cimb_df = scrape_website(
     "CIMB", "https://www.cimbthai.com/en/personal/help-support/rates-charges/foreign-exchange-rates.html")
 
 combined_df = pd.concat([kbank_c_df, bay_c_df, ttb_df,
-                        ktb_df, spr_df, bbl_df, uob_df, cimb_df]).reset_index(drop=True)
+                        ktb_df, spr_df, bbl_df, uob_df, cimb_df, scb_df]).reset_index(drop=True)
 selected_cur = ktb_df.currency.unique().tolist()
 tmp = combined_df.copy()
 tmp.rename(columns={'bank_abbv_name': '', 'buying_rate': 'Buying Rate',
            'selling_rate': 'Selling Rate', 'currency': 'Currency'}, inplace=True)
 pivoted_df = tmp.pivot(index='Currency', columns='', values=[
                        'Buying Rate', 'Selling Rate'])
-pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), ('Selling Rate', 'UOB'), ('Selling Rate', 'CIMB'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
-                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'UOB'), ('Buying Rate', 'CIMB')]]
+pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), ('Selling Rate', 'UOB'), ('Selling Rate', 'CIMB'), ('Selling Rate', 'SCB'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
+                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'UOB'), ('Buying Rate', 'CIMB'), ('Buying Rate', 'SCB')]]
 # without BAYBOARDING
 # pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
 #                          , ('Buying Rate', 'SUPERRICH GREEN')]]
