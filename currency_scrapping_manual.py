@@ -125,6 +125,14 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
                        'USD DENO. $ : 50-100', 'currency'] = 'USD'
         exc_val_df.loc[exc_val_df['currency']
                        == 'JPY : 100', 'currency'] = 'JPY'
+        buy_div100 = float(
+            exc_val_df.loc[exc_val_df['currency'] == 'JPY']['buying_rate'].values[0])/100
+        sell_div100 = float(
+            exc_val_df.loc[exc_val_df['currency'] == 'JPY']['selling_rate'].values[0])/100
+        exc_val_df.loc[exc_val_df['currency'] ==
+                       'JPY', ['buying_rate']] = buy_div100
+        exc_val_df.loc[exc_val_df['currency'] ==
+                       'JPY', ['selling_rate']] = sell_div100
     elif bank_abbv_name == 'KTB TRAVEL':
         options = Options()
         # options.add_argument('ignore-certificate-errors')
@@ -185,6 +193,14 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
         exc_val_df = pd.DataFrame(exc_val_list, columns=header)
         exc_val_df['currency'] = exc_val_df['currency'].str.replace(
             'JPY (:100)', 'JPY')
+        buy_div100 = float(
+            exc_val_df.loc[exc_val_df['currency'] == 'JPY']['buying_rate'].values[0])/100
+        sell_div100 = float(
+            exc_val_df.loc[exc_val_df['currency'] == 'JPY']['selling_rate'].values[0])/100
+        exc_val_df.loc[exc_val_df['currency'] ==
+                       'JPY', ['buying_rate']] = buy_div100
+        exc_val_df.loc[exc_val_df['currency'] ==
+                       'JPY', ['selling_rate']] = sell_div100
     elif bank_abbv_name == 'BBL':
         options = Options()
         options.headless = True
