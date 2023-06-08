@@ -201,6 +201,37 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
             lambda x: "{:.4f}".format(float(x)))
         exc_val_df["bank_abbv_name"] = bank_abbv_name
         exc_val_df = selected_currency(exc_val_df, selected_cur_list)
+    elif bank_abbv_name == 'CIMB':
+        options = Options()
+        options.headless = True
+        driver = webdriver.Chrome(
+            '~/Downloads/chromedriver_mac64/chromedriver', options=options)
+        driver.get(url)
+        exc_val_df = pd.read_html(driver.find_element(
+            By.XPATH, '//table').get_attribute('outerHTML'), encoding='utf-8')[0]
+
+        exc_val_df = exc_val_df[['Currency Code',
+                                 'Buying Rates', 'Selling Rates']]
+        exc_val_df.columns = ['_'.join(col)
+                              for col in exc_val_df.columns.values]
+        exc_val_df.rename(columns={
+            'Currency Code_Currency Code': 'currency',
+            'Buying Rates_Unnamed: 2_level_1': 'buying_rate',
+            'Selling Rates_Telegraphic Transfer': 'selling_rate'},
+            inplace=True)
+        exc_val_df = exc_val_df[['currency', 'buying_rate', 'selling_rate']].drop_duplicates(
+            'currency', keep='first')
+        exc_val_df = exc_val_df[(exc_val_df['buying_rate'] != '-') & (
+            exc_val_df['selling_rate'] != '-')]
+        exc_val_df.loc[exc_val_df['currency'] ==
+                       'USD50-100', 'currency'] = 'USD'
+
+        exc_val_df["selling_rate"] = exc_val_df["selling_rate"].apply(
+            lambda x: "{:.4f}".format(float(x)))
+        exc_val_df["buying_rate"] = exc_val_df["buying_rate"].apply(
+            lambda x: "{:.4f}".format(float(x)))
+        exc_val_df["bank_abbv_name"] = bank_abbv_name
+        exc_val_df = selected_currency(exc_val_df, selected_cur_list)
 
     elif bank_abbv_name == "SCB":
         options = Options()
@@ -256,17 +287,20 @@ scb_df = scrape_website(
     "SCB", "https://www.scb.co.th/th/personal-banking/foreign-exchange-rates.html"
 )
 
+cimb_df = scrape_website(
+    "CIMB", "https://www.cimbthai.com/en/personal/help-support/rates-charges/foreign-exchange-rates.html")
+
 combined_df = pd.concat([kbank_c_df, bay_c_df, ttb_df,
-                        ktb_df, spr_df, bbl_df,scb_df]).reset_index(drop=True)
+                        ktb_df, spr_df, bbl_df, cimb_df, scb_df]).reset_index(drop=True)
 selected_cur = ktb_df.currency.unique().tolist()
 tmp = combined_df.copy()
 tmp.rename(columns={'bank_abbv_name': '', 'buying_rate': 'Buying Rate',
            'selling_rate': 'Selling Rate', 'currency': 'Currency'}, inplace=True)
 pivoted_df = tmp.pivot(index='Currency', columns='', values=[
                        'Buying Rate', 'Selling Rate'])
-pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), 
+pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), ('Selling Rate', 'CIMB'), 
                          ('Selling Rate', 'SCB'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
-                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'SCB')]]
+                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'CIMB'),('Buying Rate', 'SCB')]]
 
 # without BAYBOARDING
 # pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
