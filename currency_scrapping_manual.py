@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
+import os
 # import df2img #need pip ipython, nbformat
 from selenium.webdriver.chrome.service import Service
 import dataframe_image as dfi
@@ -231,9 +231,12 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
         exc_val_df = selected_currency(exc_val_df, selected_cur_list)
     elif bank_abbv_name == 'CIMB':
         options = Options()
-        options.headless = True
-        driver = webdriver.Chrome(
-            '~/Downloads/chromedriver_mac64/chromedriver', options=options)
+        options.add_argument("--headless")  # Run the browser in headless mode (without a GUI)
+
+        # Set the path to ChromeDriver executable
+        chrome_driver_path = os.path.expanduser("~/Downloads/chromedriver_mac64/chromedriver")
+        os.environ["PATH"] += os.pathsep + chrome_driver_path
+        driver = webdriver.Chrome(options=options)
         driver.get(url)
         exc_val_df = pd.read_html(driver.find_element(
             By.XPATH, '//table').get_attribute('outerHTML'), encoding='utf-8')[0]
@@ -260,8 +263,7 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
             lambda x: "{:.4f}".format(float(x)))
         exc_val_df["bank_abbv_name"] = bank_abbv_name
         exc_val_df = selected_currency(exc_val_df, selected_cur_list)
-
-    elif bank_abbv_name == "SCB":
+    elif bank_abbv_name == "CITI":
         options = Options()
         options.add_argument('ignore-certificate-errors')
         options.headless = True
@@ -291,6 +293,29 @@ def scrape_website(bank_abbv_name, url, selected_cur_list=None):
         exc_val_df.replace({'-': ''}, inplace=True)
         save_dataframe_image(exc_val_df, 'SCB')
 
+        # Create a BeautifulSoup object to parse the HTML content
+        soup1 = BeautifulSoup(page_source, "html.parser")
+
+        # Find the div element with the specified class
+        div_table = soup1.find("div", id ="horizontalTab")
+
+
+        # Extract the data from the div table
+        table_data = []
+        for row in div_table.find_all("div", class_="cT-divTableRow"):
+            # Extract the cells from each row
+            cells = row.find_all("div", class_="wwctrl")
+            row_data = [cell.text.strip() for cell in cells]
+            table_data.append(row_data)
+        header = ["bank_abbv_name", "currency", "buying_rate", "selling_rate"]
+        exc = []
+        for i in range(len(table_data)):
+            exc.append([bank_abbv_name,table_data[i][1],table_data[i][4],table_data[i][5]])
+        header = ["bank_abbv_name", "currency", "buying_rate", "selling_rate"]
+        exc_val_df = pd.DataFrame(exc, columns=header)
+
+    # Set up the Selenium webdriver
+    # driver = webdriver.Chrome(options=options)
     # save_df2img(tmp_df.set_index('bank_abbv_name'),'Test_save_'+bank_abbv_name)
     # save_dataframe_image(tmp_df.set_index('bank_abbv_name'),'Test_save_'+bank_abbv_name)
     tmp_df = exc_val_df.copy()
@@ -312,6 +337,7 @@ spr_df = scrape_website(
     "SUPERRICH GREEN", "https://www.superrichthailand.com/#!/en/exchange")
 bbl_df = scrape_website(
     "BBL", "https://www.bangkokbank.com/en/Personal/Other-Services/View-Rates/Foreign-Exchange-Rates")
+
 uob_df = scrape_website(
     "UOB", "https://ereport.uob.co.th/UOBWebFrontService/Exchange/FxRateEnNew.jsp?flags=LastFx")
 scb_df = scrape_website(
@@ -320,17 +346,20 @@ scb_df = scrape_website(
 
 cimb_df = scrape_website(
     "CIMB", "https://www.cimbthai.com/en/personal/help-support/rates-charges/foreign-exchange-rates.html")
-
+citi_df = scrape_website(
+    "CITI", "https://www.citibank.co.th/THGCB/COA/frx/prefxratinq/flow.action")
 combined_df = pd.concat([kbank_c_df, bay_c_df, ttb_df,
-                        ktb_df, spr_df, bbl_df, uob_df, cimb_df, scb_df]).reset_index(drop=True)
+
+                        ktb_df, spr_df, bbl_df, uob_df, cimb_df, scb_df,citi_df]).reset_index(drop=True)
+
 selected_cur = ktb_df.currency.unique().tolist()
 tmp = combined_df.copy()
 tmp.rename(columns={'bank_abbv_name': '', 'buying_rate': 'Buying Rate',
            'selling_rate': 'Selling Rate', 'currency': 'Currency'}, inplace=True)
 pivoted_df = tmp.pivot(index='Currency', columns='', values=[
                        'Buying Rate', 'Selling Rate'])
-pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), ('Selling Rate', 'UOB'), ('Selling Rate', 'CIMB'), ('Selling Rate', 'SCB'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
-                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'UOB'), ('Buying Rate', 'CIMB'), ('Buying Rate', 'SCB')]]
+pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'BAY BOARDING'), ('Selling Rate', 'SUPERRICH GREEN'), ('Selling Rate', 'BBL'), ('Selling Rate', 'UOB'), ('Selling Rate', 'CIMB'), ('Selling Rate', 'SCB'),('Selling Rate', 'CITI'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
+                         , ('Buying Rate', 'BAY BOARDING'), ('Buying Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'BBL'), ('Buying Rate', 'UOB'), ('Buying Rate', 'CIMB'), ('Buying Rate', 'SCB'), ('Buying Rate', 'CITI')]]
 # without BAYBOARDING
 # pivoted_df = pivoted_df[[('Selling Rate', 'KTB TRAVEL'), ('Selling Rate', 'TTB'), ('Selling Rate', 'KBANK JOURNEY'), ('Selling Rate', 'SUPERRICH GREEN'), ('Buying Rate', 'KTB TRAVEL'), ('Buying Rate', 'TTB')                        # ,('Buying Rate','KBANK JOURNEY')
 #                          , ('Buying Rate', 'SUPERRICH GREEN')]]
